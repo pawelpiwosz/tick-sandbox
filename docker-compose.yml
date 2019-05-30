@@ -1,0 +1,327 @@
+version: '3'
+services:
+  influxdb1:
+    build:
+      context: ./images/influxdb1/
+      dockerfile: ./Dockerfile
+      args:
+        INFLUXDB_TAG: ${INFLUXDB_TAG}
+    image: "influxdb1"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "influxdb"
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb1
+      - ./influxdb/config/:/etc/influxdb1/
+      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "8086:8086"
+      - "8082:8082"
+      - "8089:8089"
+  influxdb2:
+    build:
+      context: ./images/influxdb2/
+      dockerfile: ./Dockerfile
+      args:
+        INFLUXDB_TAG: ${INFLUXDB_TAG}
+    image: "influxdb2"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "influxdb2"
+    volumes:
+      - ./influxdb2/data:/var/lib/influxdb
+      - ./influxdb2/config/:/etc/influxdb/
+      - ./influxdb2/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "7086:8086"
+      - "7082:8082"
+      - "7089:8089"
+  relay1:
+    build:
+      context: ./images/relay1/
+      dockerfile: ./Dockerfile
+    image: "relay1"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "relay1"
+    links:
+      - influxdb1
+      - influxdb2
+    volumes:
+      - ./relay1/config/relay.toml:/etc/relay.toml
+    ports:
+      - "9096:9096"
+    depends_on:
+      - influxdb1
+      - influxdb2
+  relay2:
+    build:
+      context: ./images/relay2/
+      dockerfile: ./Dockerfile
+    image: "relay2"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "relay2"
+    links:
+      - influxdb1
+      - influxdb2
+    volumes:
+      - ./relay1/config/relay.toml:/etc/relay.toml
+    ports:
+      - "9086:9096"
+    depends_on:
+      - influxdb1
+      - influxdb2
+  telegraf:
+    build:
+      context: ./images/telegraf/
+      dockerfile: ./Dockerfile
+      args:
+        TELEGRAF_TAG: ${TELEGRAF_TAG}
+    image: "telegraf"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "telegraf"
+    links:
+      - influxdb1
+      - influxdb2
+      - relay1
+      - relay2
+      - haproxy-relay
+    volumes:
+      - ./telegraf/:/etc/telegraf/
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8094:8094/udp"
+    depends_on:
+      - haproxy-relay
+  kapacitor:
+    build:
+      context: ./images/kapacitor/
+      dockerfile: ./Dockerfile
+      args:
+        KAPACITOR_TAG: ${KAPACITOR_TAG}
+    image: "kapacitor"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "kapacitor"
+    volumes:
+      - ./kapacitor/data/:/var/lib/kapacitor
+      - ./kapacitor/config/:/etc/kapacitor/
+    links:
+      - influxdb1
+      - influxdb2
+      - relay1
+      - relay2
+      - haproxy-relay
+    ports:
+      - "9092:9092"
+    depends_on:
+      - haproxy-relay
+  chronograf:
+    build:
+      context: ./images/chronograf/
+      dockerfile: ./Dockerfile
+      args:
+        CHRONOGRAF_TAG: ${CHRONOGRAF_TAG}
+    image: "chronograf"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "chronograf"
+      RESOURCES_PATH: "/usr/share/chronograf/resources"
+    volumes:
+      - ./chronograf/data/:/var/lib/chronograf/
+    links:
+      - influxdb1
+      - influxdb2
+      - relay1
+      - relay2
+      - haproxy-relay
+      - kapacitor
+    ports:
+      - "8888:8888"
+    depends_on:
+      - haproxy-relay
+  nginx1:
+    build:
+      context: ./images/nginx1/
+      dockerfile: ./Dockerfile
+      args:
+        NGINX1_TAG: ${NGINX1_TAG}
+    image: "nginx1"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "nginx1"
+    volumes:
+      - ./nginx1/data/:/usr/share/nginx/html/
+      - ./nginx1/config/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx1/config/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx1/config/telegraf.conf:/etc/telegraf/telegraf.conf
+    ports:
+      - "8080:80"
+    depends_on:
+      - haproxy-relay
+      - kapacitor
+      - telegraf
+      - chronograf
+  nginx2:
+    build:
+      context: ./images/nginx2/
+      dockerfile: ./Dockerfile
+      args:
+        NGINX2_TAG: ${NGINX2_TAG}
+    image: "nginx2"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "nginx2"
+    volumes:
+      - ./nginx2/data/:/usr/share/nginx/html/
+      - ./nginx2/config/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx2/config/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx2/config/telegraf.conf:/etc/telegraf/telegraf.conf
+    ports:
+      - "8081:80"
+    depends_on:
+      - haproxy-relay
+      - kapacitor
+      - telegraf
+      - chronograf
+  nginx3:
+    build:
+      context: ./images/nginx3/
+      dockerfile: ./Dockerfile
+      args:
+        NGINX3_TAG: ${NGINX3_TAG}
+    image: "nginx3"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    links:
+      - haproxy-relay
+    environment:
+      HOSTNAME: "nginx3"
+    volumes:
+      - ./nginx3/data/:/usr/share/nginx/html/
+      - ./nginx3/config/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx3/config/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx3/config/telegraf.conf:/etc/telegraf/telegraf.conf
+    ports:
+      - "8083:80"
+    depends_on:
+      - haproxy-relay
+      - kapacitor
+      - telegraf
+      - chronograf
+
+  haproxy-relay:
+    build:
+      context: ./images/haproxy-relay/
+      dockerfile: ./Dockerfile
+      args:
+        HAPROXY_TAG: ${HAPROXY_TAG}
+    image: "haproxy-relay"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "haproxy-relay"
+    volumes:
+      - ./haproxy-relay/config/haproxy.cfg:/etc/haproxy/haproxy.cfg
+    links:
+      - relay1
+      - relay2
+      - influxdb1
+      - influxdb2
+    ports:
+      - "9990:80"
+      - "9991:82"
+    depends_on:
+      - influxdb1
+      - influxdb2
+      - relay1
+      - relay2
+
+  haproxy-nginx:
+    build:
+      context: ./images/haproxy-nginx/
+      dockerfile: ./Dockerfile
+      args:
+        HAPROXY_TAG: ${HAPROXY_TAG}
+    image: "haproxy-nginx"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    environment:
+      HOSTNAME: "haproxy-nginx"
+    volumes:
+      - ./haproxy-nginx/config/haproxy.cfg:/etc/haproxy/haproxy.cfg
+    links:
+      - nginx1
+      - nginx2
+      - nginx3
+    ports:
+      - "9980:80"
+      - "9981:82"
+    depends_on:
+      - nginx1
+      - nginx2
+      - nginx3
+
+  ab:
+    build:
+      context: ./images/ab/
+      dockerfile: ./Dockerfile
+      args:
+        AB_TAG: ${AB_TAG}
+    image: "ab"
+    logging:
+      driver: "json-file"
+      options:
+          max-size: "10m"
+          max-file: "5"
+    links:
+      - haproxy-nginx
+    depends_on:
+      - haproxy-nginx

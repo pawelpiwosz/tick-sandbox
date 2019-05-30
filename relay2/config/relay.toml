@@ -1,0 +1,7 @@
+[[http]]
+name = "influxdb-http"
+bind-addr = "0.0.0.0:9096"
+output = [
+  { name="influxdb1", location = "http://influxdb:8086/write" },
+  { name="influxdb2", location = "http://influxdb2:8086/write" }
+]
