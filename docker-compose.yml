@@ -15,8 +15,8 @@ services:
     environment:
       HOSTNAME: "influxdb1"
     volumes:
-      - ./influxdb1/data:/var/lib/influxdb1
-      - ./influxdb1/config/:/etc/influxdb1/
+      - ./influxdb1/data:/var/lib/influxdb
+      - ./influxdb1/config/:/etc/influxdb/
       - ./influxdb1/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "8086:8086"
