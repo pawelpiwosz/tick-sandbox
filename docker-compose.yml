@@ -13,11 +13,11 @@ services:
           max-size: "10m"
           max-file: "5"
     environment:
-      HOSTNAME: "influxdb"
+      HOSTNAME: "influxdb1"
     volumes:
-      - ./influxdb/data:/var/lib/influxdb1
-      - ./influxdb/config/:/etc/influxdb1/
-      - ./influxdb/init:/docker-entrypoint-initdb.d:ro
+      - ./influxdb1/data:/var/lib/influxdb1
+      - ./influxdb1/config/:/etc/influxdb1/
+      - ./influxdb1/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "8086:8086"
       - "8082:8082"
