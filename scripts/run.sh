@@ -5,7 +5,7 @@
 #
 # build check if container exists
 if [[ $1 == '' ]]; then
-	echo -e 'Provide container name!''
+	echo -e 'Provide container name!'
 	exit 1
 fi
 
